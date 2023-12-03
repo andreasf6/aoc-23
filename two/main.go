@@ -17,17 +17,17 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	return
 	fileScanner := bufio.NewScanner(readFile)
 	fileScanner.Split(bufio.ScanLines)
 
-	var part1Input []game
+	var partsInput []game
 
 	for fileScanner.Scan() {
-		part1Input = append(part1Input, parseGame(fileScanner.Text()))
+		partsInput = append(partsInput, parseGame(fileScanner.Text()))
 	}
 
-	fmt.Println(part1(part1Input))
+	fmt.Println(part1(partsInput))
+	fmt.Println(part2(partsInput))
 
 }
 
@@ -45,6 +45,15 @@ func part1(games []game) int {
 
 	return total
 
+}
+
+func part2(games []game) int {
+	total := 0
+	for _, game := range games {
+		total = total + (game.maxRed * game.maxGreen * game.maxBlue)
+	}
+
+	return total
 }
 
 func parseGame(input string) game {
