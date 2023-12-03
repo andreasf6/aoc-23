@@ -46,18 +46,13 @@ func getFirstLastDigits(line string, part int) (int, int) {
 	idx := []int{}
 	vals := []int{}
 
-	for j := 0; j < len(line); j++ {
-		for i := 0; i < len(numbers); i++ {
-
-			index := strings.Index(line[j:], numbers[i])
-			if index == -1 {
-				continue
-			}
-			idx = append(idx, j+index)
-			vals = append(vals, i)
-
+	for i := 0; i < len(numbers); i++ {
+		index := strings.Index(line[:], numbers[i])
+		if index == -1 {
+			continue
 		}
-
+		idx = append(idx, index)
+		vals = append(vals, i)
 	}
 
 	min, max := findMinMax(idx, vals)
