@@ -31,8 +31,15 @@ func main() {
 		numId += len(nums)
 	}
 
-	getAdjacentSymbols(&input, lineIndex)
-	fmt.Println(getTotalNums(keys(input.partNums), &input.nums))
+	partNumsTotal := getAdjacentSymbols(&input, lineIndex, rune(0), 0)
+	fmt.Println(getTotalNums(keys(partNumsTotal), &input.nums))
+
+	partNumsGears := getAdjacentSymbols(&input, lineIndex, rune(42), 2)
+	total := 0
+	for _, v := range partNumsGears {
+		total += v
+	}
+	fmt.Println(total)
 
 }
 
@@ -45,6 +52,7 @@ type Input struct {
 type Symbol struct {
 	lineIndex      int
 	positionInLine int
+	symbol         rune
 }
 
 type Num struct {
@@ -64,7 +72,7 @@ func parseInput(inputRaw string, lineIndex int, numId int) (symbs []Symbol, nums
 		char := inputLine[indexInLine]
 
 		if char != 46 && !unicode.IsDigit(char) {
-			symbs = append(symbs, Symbol{positionInLine: indexInLine, lineIndex: lineIndex})
+			symbs = append(symbs, Symbol{positionInLine: indexInLine, lineIndex: lineIndex, symbol: char})
 			indexInLine += 1
 		} else if unicode.IsDigit(char) {
 			valueString := string(char)
@@ -91,16 +99,24 @@ func parseInput(inputRaw string, lineIndex int, numId int) (symbs []Symbol, nums
 	return
 }
 
-func getAdjacentSymbols(inputPointer *Input, maxLineIndex int) {
+func getAdjacentSymbols(inputPointer *Input, maxLineIndex int, symbolToSearch rune, numberOfGears int) (partNums map[int]int) {
 	input := *inputPointer
+	partNums = make(map[int]int)
 
 	for _, symbol := range input.symbols {
+		partNumsTmp := make(map[int]int)
+		if symbolToSearch != 0 && symbolToSearch != symbol.symbol {
+			continue
+		}
+		valuesToInsert := make(map[int]int)
 		lineIndex := symbol.lineIndex
+		numberOfAdjacent := 0
 
 		// check in same line
 		for _, numSameLine := range getNumsInLine(lineIndex, input.nums) {
 			if slices.Contains(numSameLine.positionsInLine, symbol.positionInLine-1) || slices.Contains(numSameLine.positionsInLine, symbol.positionInLine+1) {
-				input.partNums[numSameLine.id] = numSameLine.value
+				valuesToInsert[numSameLine.id] = numSameLine.value
+				numberOfAdjacent++
 			}
 		}
 
@@ -108,21 +124,63 @@ func getAdjacentSymbols(inputPointer *Input, maxLineIndex int) {
 		if lineIndex-1 >= 0 {
 			for _, numLineAbove := range getNumsInLine(lineIndex-1, input.nums) {
 				if slices.Contains(numLineAbove.positionsInLine, symbol.positionInLine-1) || slices.Contains(numLineAbove.positionsInLine, symbol.positionInLine+1) || slices.Contains(numLineAbove.positionsInLine, symbol.positionInLine) {
-					input.partNums[numLineAbove.id] = numLineAbove.value
+					valuesToInsert[numLineAbove.id] = numLineAbove.value
+					numberOfAdjacent++
 				}
 			}
 		}
 
 		// check line below
 		if lineIndex+1 < maxLineIndex {
-			for _, numLineAbove := range getNumsInLine(lineIndex+1, input.nums) {
-				if slices.Contains(numLineAbove.positionsInLine, symbol.positionInLine-1) || slices.Contains(numLineAbove.positionsInLine, symbol.positionInLine+1) || slices.Contains(numLineAbove.positionsInLine, symbol.positionInLine) {
-					input.partNums[numLineAbove.id] = numLineAbove.value
+			for _, numLineBelow := range getNumsInLine(lineIndex+1, input.nums) {
+				if slices.Contains(numLineBelow.positionsInLine, symbol.positionInLine-1) || slices.Contains(numLineBelow.positionsInLine, symbol.positionInLine+1) || slices.Contains(numLineBelow.positionsInLine, symbol.positionInLine) {
+					valuesToInsert[numLineBelow.id] = numLineBelow.value
+					numberOfAdjacent++
 				}
+			}
+		}
+
+		for key, value := range valuesToInsert {
+			if numberOfGears != 0 && numberOfAdjacent == numberOfGears {
+				partNumsTmp[key] = value
+			} else if numberOfGears == 0 && numberOfAdjacent > 0 {
+				partNumsTmp[key] = value
 			}
 
 		}
+
+		if numberOfGears != 0 && len(keys(partNumsTmp)) == numberOfGears {
+			newTotal := 1
+			toDelete := []int{}
+			for k, v := range partNumsTmp {
+				newTotal = newTotal * v
+				toDelete = append(toDelete, k)
+			}
+			for i, keyToDelete := range toDelete {
+				if i == 0 {
+					continue
+				}
+				delete(partNumsTmp, keyToDelete)
+			}
+			partNumsTmp[toDelete[0]] = newTotal
+		}
+
+		for k, v := range partNumsTmp {
+			partNums[k] = v
+		}
+
 	}
+
+	return
+}
+
+func canBeAddedAsAdjacent(numberOfGears int, numberOfAdjacent int) bool {
+	if numberOfGears != 0 && numberOfAdjacent == numberOfGears {
+		return true
+	} else if numberOfGears == 0 && numberOfAdjacent > 0 {
+		return true
+	}
+	return false
 }
 
 func getNumsInLine(lineIndex int, nums []Num) (numsInLine []Num) {
