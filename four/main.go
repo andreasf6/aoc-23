@@ -21,6 +21,8 @@ func main() {
 	fileScanner.Split(bufio.ScanLines)
 
 	scratchCards := []ScratchCard{}
+	pile := make(map[int]int)
+	lineIndex := 0
 	for fileScanner.Scan() {
 		rawInput := strings.Fields(strings.Split(fileScanner.Text(), ":")[1])
 		winNumsRaw, myNumsRaw := rawInput[0:slices.Index(rawInput, "|")], rawInput[slices.Index(rawInput, "|")+1:]
@@ -39,11 +41,23 @@ func main() {
 			sC.points = 1 << winningInCard >> 1
 
 		}
+
+		pile[lineIndex] += 1
+		if sC.points > 0 {
+
+			for k := 0; k < pile[lineIndex]; k++ {
+				for j := 1; j <= len(sC.winning); j++ {
+					pile[j+lineIndex] += 1
+
+				}
+			}
+		}
 		scratchCards = append(scratchCards, sC)
+		lineIndex += 1
 	}
 
 	fmt.Println(calculateTotal(&scratchCards))
-	fmt.Println(calculateTotalCardNums(&scratchCards))
+	fmt.Println(calculateTotalCardNums(&pile, lineIndex))
 
 }
 
@@ -60,29 +74,11 @@ func calculateTotal(sCs *[]ScratchCard) (total int) {
 	return
 }
 
-func calculateTotalCardNums(sCs *[]ScratchCard) (total int) {
-	pile := make(map[int]int)
-	maxInt := 0
-	for i, sC := range *sCs {
-		pile[i] += 1
-		if sC.points > 0 {
-
-			for k := 0; k < pile[i]; k++ {
-				for j := 1; j <= len(sC.winning); j++ {
-					if j+i < len(*sCs) {
-						pile[j+i] += 1
-					}
-				}
-			}
+func calculateTotalCardNums(pile *map[int]int, maxLine int) (total int) {
+	for i, v := range *pile {
+		if i < maxLine {
+			total += v
 		}
 	}
-
-	for _, v := range pile {
-		if maxInt < v {
-			maxInt = v
-		}
-		total += v
-	}
-	fmt.Println(maxInt)
 	return
 }
