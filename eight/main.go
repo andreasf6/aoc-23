@@ -66,6 +66,17 @@ func keys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
+func gcf(a, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
+}
+
+func lcm(a, b int) int {
+	return a * b / gcf(a, b)
+}
+
 func main() {
 	fmt.Println("Hello Andrea!")
 
@@ -79,12 +90,13 @@ func main() {
 	fmt.Println(followInstructions(instructions, &network, "AAA", "ZZZ"))
 
 	part2Start := "A"
-	startPossibilities := []string{}
+	resultTotal := 1
 	networkNodes := keys(network.nodes)
 	for i := 0; i < len(networkNodes); i++ {
 		if strings.HasSuffix(networkNodes[i], part2Start) {
-			startPossibilities = append(startPossibilities, networkNodes[i])
+			resultTotal = lcm(resultTotal, followInstructions(instructions, &network, networkNodes[i], "Z"))
 		}
 	}
+	fmt.Println(resultTotal)
 
 }
