@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"reflect"
@@ -20,7 +21,7 @@ func main() {
 	}
 	fileString := string(readFile)
 
-	almanac := parseAlmanacMap(fileString, false)
+	almanac := parseAlmanacMap(fileString)
 
 	wg := new(sync.WaitGroup)
 	wg.Add(2)
@@ -47,16 +48,20 @@ func main() {
 	slices.Sort(lowest)
 	fmt.Println(lowest[0])
 
+	seedRanges := parseInitialSeedRanges(strings.Split(fileString, "\n\n")[0][7:])
+	part2 := reverseFindSeedLoc(&almanac, seedRanges)
+	fmt.Println(part2)
+
 }
 
-func parseAlmanacMap(almanacRaw string, part2 bool) Almanac {
+func parseAlmanacMap(almanacRaw string) Almanac {
 
 	fileStringSplit := strings.Split(almanacRaw, "\n\n")
 
 	almanac := Almanac{}
 
 	initialSeedsRaw := fileStringSplit[0][7:]
-	initialSeeds := parseInitialSeeds[*Seed](initialSeedsRaw, reflect.TypeOf(Seed{}), part2)
+	initialSeeds := parseInitialSeeds[*Seed](initialSeedsRaw, reflect.TypeOf(Seed{}))
 	almanac.initialSeeds = (initialSeeds)
 
 	almanac.seedToSoilMaps = parseCategoryMaps[*Seed, *Soil](fileStringSplit[1], reflect.TypeOf(Seed{}), reflect.TypeOf(Soil{}))
@@ -103,24 +108,33 @@ func createCategory(categoryType reflect.Type) Category {
 	return reflect.New(categoryType).Interface().(Category)
 }
 
-func parseInitialSeeds[T Category](categoryNumbersRaw string, categoryType reflect.Type, part2 bool) []T {
+func parseInitialSeedRanges(categoryNumbersRaw string) []SeedRange {
+	seedRangesRawList := strings.Split(categoryNumbersRaw, " ")
+	var seedRanges []SeedRange
+
+	for i, v := range seedRangesRawList {
+		value, _ := strconv.Atoi(v)
+
+		if i%2 == 0 {
+			var seedRange SeedRange
+			seedRange.start = value
+			seedRanges = append(seedRanges, seedRange)
+		} else if i%2 == 1 {
+			lastNumber := &(seedRanges[len(seedRanges)-1])
+			lastNumber.rangeLen = value
+		}
+	}
+	return seedRanges
+
+}
+
+func parseInitialSeeds[T Category](categoryNumbersRaw string, categoryType reflect.Type) []T {
 	var categoryNumbers []T
 
 	categoryNumbersRawList := strings.Split(categoryNumbersRaw, " ")
-	for i, v := range categoryNumbersRawList {
+	for _, v := range categoryNumbersRawList {
 		value, _ := strconv.Atoi(v)
 
-		if (part2) && i%2 == 1 {
-			lastNumber := categoryNumbers[len(categoryNumbers)-1]
-			for i = 1; i <= value; i++ {
-				categoryNumber := createCategory(reflect.Type(categoryType))
-				(categoryNumber).setNumber(lastNumber.getNumber() + i)
-
-				categoryNumbers = append(categoryNumbers, categoryNumber.(T))
-
-			}
-			continue
-		}
 		categoryNumber := createCategory(reflect.Type(categoryType))
 		(categoryNumber).setNumber(value)
 
@@ -164,6 +178,11 @@ type Light struct{ number int }
 type Temp struct{ number int }
 type Humidity struct{ number int }
 type Location struct{ number int }
+
+type SeedRange struct {
+	start    int
+	rangeLen int
+}
 
 func (s *Seed) setNumber(value int) {
 	s.number = value
@@ -229,16 +248,17 @@ func (s Location) getNumber() int {
 	return s.number
 }
 
-func (A *AlmanacMaps[T, S]) findNext(source T, destinationType reflect.Type) S {
+func (A *AlmanacMaps[T, S]) findNext(source Category, destinationType reflect.Type) S {
 	destinationValue := createCategory(reflect.Type(destinationType))
 
 	for _, mapItem := range (*A).maps {
-
 		minNumber := mapItem.sourceStart.getNumber()
 		maxNumber := mapItem.sourceStart.getNumber() + mapItem.rangeLen
+		destinationNumberForSet := mapItem.destinationStart.getNumber()
+
 		if (source.getNumber() >= minNumber) && (source.getNumber() < maxNumber) {
 			difference := source.getNumber() - minNumber
-			destinationValue.setNumber(mapItem.destinationStart.getNumber() + difference)
+			destinationValue.setNumber(destinationNumberForSet + difference)
 			return destinationValue.(S)
 		}
 
@@ -247,6 +267,27 @@ func (A *AlmanacMaps[T, S]) findNext(source T, destinationType reflect.Type) S {
 	(destinationValue).setNumber(source.getNumber())
 
 	return destinationValue.(S)
+}
+
+func (A *AlmanacMaps[T, S]) reverseFindNext(source S, destinationType reflect.Type) T {
+	destinationValue := createCategory(reflect.Type(destinationType))
+
+	for _, mapItem := range (*A).maps {
+		minNumber := mapItem.destinationStart.getNumber()
+		maxNumber := mapItem.destinationStart.getNumber() + mapItem.rangeLen
+		destinationNumberForSet := mapItem.sourceStart.getNumber()
+
+		if (source.getNumber() >= minNumber) && (source.getNumber() < maxNumber) {
+			difference := source.getNumber() - minNumber
+			destinationValue.setNumber(destinationNumberForSet + difference)
+			return destinationValue.(T)
+		}
+
+	}
+
+	(destinationValue).setNumber(source.getNumber())
+
+	return destinationValue.(T)
 }
 
 func findSeedLoc(almanac *Almanac, seed *Seed) int {
@@ -259,4 +300,39 @@ func findSeedLoc(almanac *Almanac, seed *Seed) int {
 	location := (*almanac).humidityToLocationMaps.findNext(humidity, reflect.TypeOf(Location{}))
 
 	return (*location).getNumber()
+}
+
+func reverseFindSeedLoc(almanac *Almanac, seeds []SeedRange) int {
+
+	slices.SortFunc(seeds, func(a, b SeedRange) int {
+		return cmp.Compare(a.start, b.start)
+	})
+
+	index := 0
+	for {
+
+		location := Location{index}
+		var currentSeedVal int
+		currentSeedVal = findSeed(almanac, &location)
+
+		if slices.ContainsFunc(seeds, func(a SeedRange) bool {
+			return currentSeedVal >= a.start && currentSeedVal < (a.start+a.rangeLen)
+		}) {
+			return index
+		}
+
+		index += 1
+	}
+}
+
+func findSeed(almanac *Almanac, location *Location) int {
+	humidity := almanac.humidityToLocationMaps.reverseFindNext((location), reflect.TypeOf(Humidity{}))
+	temp := almanac.tempToHumidityMaps.reverseFindNext(humidity, reflect.TypeOf(Temp{}))
+	light := almanac.lightToTempMaps.reverseFindNext(temp, reflect.TypeOf(Light{}))
+	water := almanac.waterToLightMaps.reverseFindNext(light, reflect.TypeOf(Water{}))
+	fertilizer := almanac.fertilizerToWaterMaps.reverseFindNext(water, reflect.TypeOf(Fertilizer{}))
+	soil := almanac.soilToFertilizerMaps.reverseFindNext(fertilizer, reflect.TypeOf(Soil{}))
+	seed := almanac.seedToSoilMaps.reverseFindNext(soil, reflect.TypeOf(Seed{}))
+
+	return seed.number
 }
